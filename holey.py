@@ -138,8 +138,8 @@ class holey:
         self.normalized_scale = np.ptp(self.data, axis=0)
         # ptp: 'peak to peak' range, abs(max-min)
 
-        for col in range(self.dims):
-            self.data[:, col] = (self.data[:, col] - self.normalized_shift[col]) / self.normalized_scale[col]
+        for dim in range(self.dims):
+            self.data[:, dim] = (self.data[:, dim] - self.normalized_shift[dim]) / self.normalized_scale[dim]
 
         self.data_isnormalized = True
 
@@ -151,18 +151,32 @@ class holey:
         assert self.normalized_shift is not None
         assert self.normalized_scale is not None
 
-        for col in range(self.dims):
-            self.data[:, col] = (self.data[:, col] * self.normalized_scale[col]) + self.normalized_shift[col]
+        for dim in range(self.dims):
+            self.data[:, dim] = (self.data[:, dim] * self.normalized_scale[dim]) + self.normalized_shift[dim]
 
         self.data_isnormalized = False
+
+
+    def unnormalize_rectangle(self, rect):
+
+        if not self.data_isnormalized:
+            error(f'Attempt to unnormalize rectangle, but no normalization params are available.')
+        assert self.normalized_shift is not None
+        assert self.normalized_scale is not None
+
+        ranges = rect.ranges
+        for dim in range(rect.dims):
+            ranges[dim] = (ranges[dim] * self.normalized_scale[dim]) + self.normalized_shift[dim]
+
+        rect.update_ranges(ranges)        
 
 
     def get_orthogonal_projections(self):
 
         assert self.data_isnormalized
 
-        for col in range(self.dims):
-            ortho = np.unique(self.data[:, col])
+        for dim in range(self.dims):
+            ortho = np.unique(self.data[:, dim])
             self.projs.append(ortho)
             self.projs_lens.append(ortho.size)
 
@@ -368,10 +382,10 @@ class holey:
 
             current_rectangle = self.make_rectangle_monte_carlo()
 
-            # size filter
-            if current_rectangle.volume < size_threshold:
-                current_tries += 1
-                continue
+            # # size filter
+            # if current_rectangle.volume < size_threshold:
+            #     current_tries += 1
+            #     continue
 
             # new max, add to result and reset tries
             if current_rectangle.volume > max_volume_found:
@@ -394,15 +408,17 @@ if __name__ == '__main__':
     log('Started holey test run ...')
 
     log('Loading model ...')
-    # load model
-    # model = '/home/ya86gul/scripts/holey/nanotext/nanotext/data/embedding.genomes.model'
-    # holey = holey(model)
+    
+    if False:
+        model = '/home/ya86gul/scripts/holey/nanotext/nanotext/data/embedding.genomes.model'
+        ho = holey(model)
 
-    # # subset model
-    # holey.data = holey.data[:100]
+        # subset model
+        ho.data = ho.data[:100]
 
-    ho = holey(np.random.randn(100, 10), 'numpy')
-    # holey = holey(np.array([3,5,7,9,5,4,7,5,3,4,9,6,4,2,4], dtype=float).reshape((5,3)), 'numpy')
+    else:
+        ho = holey(np.random.randn(100, 10), 'numpy')
+        # ho = ho(np.array([3,5,7,9,5,4,7,5,3,4,9,6,4,2,4], dtype=float).reshape((5, 3)), 'numpy')
 
     print(ho.data[:5])
     log('Normalizing data ...')
@@ -418,12 +434,13 @@ if __name__ == '__main__':
     print(ho.projs_lens)
 
 
-    rects = ho.generate_rectangles(num_tries=100)
+    rects = ho.generate_rectangles(num_tries=10)
 
     # check them again
     for rect in rects:
-        print(rect)
         empty = ho.check_if_no_data_in_ranges(rect.ranges)
+        ho.unnormalize_rectangle(rect)
+        print(rect)
         print(f'Rectangle is empty: {empty}')
 
     log('Done.')
